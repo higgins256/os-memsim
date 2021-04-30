@@ -1,3 +1,5 @@
+#include <iomanip>
+#include <math.h>
 #include "mmu.h"
 
 Mmu::Mmu(int memory_size)
@@ -51,27 +53,39 @@ void Mmu::addVariableToProcess(uint32_t pid, std::string var_name, DataType type
     }
 }
 
-Process Mmu::getProcessAt(int pid){
-    for (i = 0; i < _processes.size(); i++)
+int Mmu::isProcessInMMU(uint32_t pid){
+    for(int i = 0; i < _processes.size(); i++){
+        if(_processes[i]->pid == pid){
+            return 1;  
+		}
+	}
+
+    return 0; //if no match is found
+}
+
+Process* Mmu::getProcessAt(uint32_t pid){
+    for (int i = 0; i < _processes.size(); i++)
     {
         if (_processes[i]->pid == pid)
         {
             return _processes[i];
         }
     }
+
+    return NULL;
 }
 
-Variable Mmu::getVariableAt(int pid, std::string desiredVar){
-    Process inq = getProcessAt(pid);
+Variable* Mmu::getVariableAt(uint32_t pid, std::string desiredVar){
+    Process *p = getProcessAt(pid);
 
-    if(inq == NULL){
+    if(p == NULL){
         std::cout << "error: process does not exist";
         return NULL; //self explanatory
 	}
 
-    for(i = 0; i < p->variables.size(); i++){
-        if(variables[i]->var_name == desiredVar){
-            return variables[i];
+    for(int i = 0; i < p->variables.size(); i++){
+        if(p->variables[i]->name == desiredVar){
+            return p->variables[i];
 	    }
 	}
 
@@ -94,7 +108,7 @@ void Mmu::print()
             uint32_t addr = _processes[i]->variables[j]->virtual_address;
             uint32_t size = _processes[i]->variables[j]->size;
 
-            std::cout << setw(5) << pid << " | " << setw(13) << varname << " | " << setw(12) << addr << " | " << size << '\n';
+            std::cout << std::setw(5) << pid << " | " << std::setw(13) << varname << " | " << std::setw(12) << addr << " | " << size << '\n';
         }
     }
 }
@@ -107,12 +121,12 @@ void Mmu:: killProcess(uint32_t pid){
 	}
 }
 
-void Mmu::checkAndMerge(uint32_t pid, Variable var, uint32_t page_size){ //for a process, check for ANY adjacent FreeSpaces within the variable's page and merge.
+void Mmu::checkAndMerge(uint32_t pid, Variable *var, uint32_t page_size){ //for a process, check for ANY adjacent FreeSpaces within the variable's page and merge.
     int currPage = 0;
     int byteCounter = 0;
     
-    Process inq;
-    for (i = 0; i < _processes.size(); i++)
+    Process *inq;
+    for (int i = 0; i < _processes.size(); i++)
     {
         if (_processes[i]->pid == pid)
         {
@@ -128,31 +142,38 @@ void Mmu::checkAndMerge(uint32_t pid, Variable var, uint32_t page_size){ //for a
 		}
 	}
 
-    if(i == -1){
+    if(toCheck == -1){
         std::cout << "error: variable not found. did you pass an incorrect argument to checkAndMerge?" << '\n';
 	} else {
-        int pgstart = trunc(inq->variables[i]->virtual_address / page_size) * page_size; //start of page in VM is virtual addr / page size truncated and then remultiplied by pgsize
+        int pgstart = trunc(inq->variables[toCheck]->virtual_address / page_size) * page_size; //start of page in VM is virtual addr / page size truncated and then remultiplied by pgsize
         int pgend = pgstart + page_size; //end of this page is just page_size bytes away from pgstart
 
-        if(inq->variables[i - 1]->name == "<FREE_SPACE>" && inq->variables[i + 1]->name == "<FREE_SPACE>"){ //Merge L&R
+        if(inq->variables[toCheck - 1]->name == "<FREE_SPACE>" && inq->variables[toCheck + 1]->name == "<FREE_SPACE>"){ //Merge L&R
 
             //Check page matches RIGHT to LEFT to avoid unusual FS distributions
-            if(inq->variables[i + 1]->virtual_address + inq->variables[i + 1]->size <= pgend){ //is the right freespace on the same page?
-                inq->variables[i]->size += inq->variables[i + 1]->size;
-                inq->variables.erase(proc->variables.begin() + (i + 1));
+            if(inq->variables[toCheck + 1]->virtual_address + inq->variables[toCheck + 1]->size <= pgend){ //is the right freespace on the same page?
+                inq->variables[toCheck]->size += inq->variables[toCheck + 1]->size;
+                inq->variables.erase(inq->variables.begin() + (toCheck + 1));
             }
             
-            if(inq->variables[i - 1]->virtual_address >= pgstart){ //is the left freespace on the same page?
-                inq->variables[i - 1]->size += inq->variables[i]->size;
-                inq->variables.erase(proc->variables.begin() + (i));
+            if(inq->variables[toCheck - 1]->virtual_address >= pgstart){ //is the left freespace on the same page?
+                inq->variables[toCheck - 1]->size += inq->variables[toCheck]->size;
+                inq->variables.erase(inq->variables.begin() + (toCheck));
 			}
             
-		} else if (inq->variables[i - 1]->name == "<FREE_SPACE>" && inq->variables[i + 1]->name != "<FREE_SPACE>" && inq->variables[i - 1]->virtual_address >= pgstart){ //Merge L
-            inq->variables[i - 1]->size += inq->variables[i]->size;
-            inq->variables.erase(proc->variables.begin() + (i));
-        } else if(inq->variables[i - 1]->name != "<FREE_SPACE>"inq->variables[i + 1]->name == "<FREE_SPACE>" && inq->variables[i + 1]->virtual_address + inq->variables[i + 1]->size <= pgend){ //Merge R
-            inq->variables[i]->size += inq->variables[i + 1]->size;
-            inq->variables.erase(proc->variables.begin() + (i + 1));
+		} else if (inq->variables[toCheck - 1]->name == "<FREE_SPACE>" && inq->variables[toCheck + 1]->name != "<FREE_SPACE>" && inq->variables[toCheck - 1]->virtual_address >= pgstart){ //Merge L
+            inq->variables[toCheck - 1]->size += inq->variables[toCheck]->size;
+            inq->variables.erase(inq->variables.begin() + (toCheck));
+        } else if(inq->variables[toCheck - 1]->name != "<FREE_SPACE>" && inq->variables[toCheck + 1]->name == "<FREE_SPACE>" && inq->variables[toCheck + 1]->virtual_address + inq->variables[toCheck + 1]->size <= pgend){ //Merge R
+            inq->variables[toCheck]->size += inq->variables[toCheck + 1]->size;
+            inq->variables.erase(inq->variables.begin() + (toCheck + 1));
 		}
+	}
+
+}
+
+void Mmu::printProcesses(){
+    for(int i = 0; i < _processes.size(); i++){
+        std::cout << _processes[i]->pid << '\n';        
 	}
 }

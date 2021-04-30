@@ -1,3 +1,4 @@
+#include <iomanip>
 #include "pagetable.h"
 
 PageTable::PageTable(int page_size)
@@ -35,7 +36,7 @@ void PageTable::addEntry(uint32_t pid, int page_number)
     // Find free frame
     //first, iterate thru pagetable and mark all used frames.
     std::vector<std::string> keys = sortedKeys();
-    bool[num_frames] marked;
+    bool marked[num_frames];
     for(int i = 0; i < num_frames; i++){
         marked[i] = false;
 	}
@@ -44,7 +45,7 @@ void PageTable::addEntry(uint32_t pid, int page_number)
     int cur = num_frames + 1;
 
 
-    for(int i = 0; i < keys.length(); i++){
+    for(int i = 0; i < keys.size(); i++){
         marked[_table[keys[i]]] = true; //mark all frames currently associated with a page
 	}
 
@@ -102,15 +103,15 @@ void PageTable::print()
     {
         // TODO: print all pages
         size_t found = keys[i].find("|");
-        if(found == string::npos){
+        if(found == std::string::npos){
              std::cout << "error in key formatting. " << '\n';
              break;
 		}
 
         std::string pid = keys[i].substr(0, found - 1);
-        std::string pagenum = keys[i].substr(found + 1, keys[i].length - (found + 1));
+        std::string pagenum = keys[i].substr(found + 1, keys[i].size() - (found + 1));
         int framenum = _table[keys[i]];
 
-        std::cout << std::setw(5) << pid << " | " << std::setw(11) << pagenum << " | " std::setw(12) << framenum << '\n';
+        std::cout << std::setw(5) << pid << " | " << std::setw(11) << pagenum << " | " << std::setw(12) << framenum << '\n';
     }
 }
