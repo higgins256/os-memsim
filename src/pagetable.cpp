@@ -29,9 +29,32 @@ void PageTable::addEntry(uint32_t pid, int page_number)
     // Combination of pid and page number act as the key to look up frame number
     std::string entry = std::to_string(pid) + "|" + std::to_string(page_number);
 
-    int frame = 0; 
+    int frame = -1; 
+    int num_frames = 67108864 / _page_size; //not sure how to find this val without hardcoding 
+
     // Find free frame
-    // TODO: implement this!
+    //first, iterate thru pagetable and mark all used frames.
+    std::vector<std::string> keys = sortedKeys();
+    bool[num_frames] marked;
+    for(int i = 0; i < num_frames; i++){
+        marked[i] = false;
+	}
+
+    int min = num_frames + 1;
+    int cur = num_frames + 1;
+
+
+    for(int i = 0; i < keys.length(); i++){
+        marked[_table[keys[i]]] = true; //mark all frames currently associated with a page
+	}
+
+    int i = 0;
+    while(frame == -1){
+        if(marked[i] = false){
+            frame = i; //grab earliest possible unmarked frame  
+		}
+	}
+
     _table[entry] = frame;
 }
 
@@ -42,6 +65,9 @@ int PageTable::getPhysicalAddress(uint32_t pid, uint32_t virtual_address)
     int page_number = 0;
     int page_offset = 0;
 
+    page_number = virtual_address / _page_size;
+    page_offset  = virtual_address % _page_size;
+
     // Combination of pid and page number act as the key to look up frame number
     std::string entry = std::to_string(pid) + "|" + std::to_string(page_number);
     
@@ -49,10 +75,18 @@ int PageTable::getPhysicalAddress(uint32_t pid, uint32_t virtual_address)
     int address = -1;
     if (_table.count(entry) > 0)
     {
-        // TODO: implement this!
+        address = _table[entry] * _page_size + page_offset;
     }
 
     return address;
+}
+
+void PageTable::removePageEntry(uint32_t pid, int page_num){
+    std::string entry = std::to_string(pid) + "|" + std::to_string(page_num);
+    if (_table.count(entry) > 0)
+    {
+        _table.erase(entry);
+    }
 }
 
 void PageTable::print()
@@ -67,5 +101,16 @@ void PageTable::print()
     for (i = 0; i < keys.size(); i++)
     {
         // TODO: print all pages
+        size_t found = keys[i].find("|");
+        if(found == string::npos){
+             std::cout << "error in key formatting. " << '\n';
+             break;
+		}
+
+        std::string pid = keys[i].substr(0, found - 1);
+        std::string pagenum = keys[i].substr(found + 1, keys[i].length - (found + 1));
+        int framenum = _table[keys[i]];
+
+        std::cout << std::setw(5) << pid << " | " << std::setw(11) << pagenum << " | " std::setw(12) << framenum << '\n';
     }
 }
