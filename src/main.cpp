@@ -41,17 +41,26 @@ int main(int argc, char **argv)
     std::getline (std::cin, command);
     while (command != "exit") {
         // Handle command
+        //std::cout << command << '\n';
+        std::string hold = "";
 
         std::vector<std::string> cmdcontainer;
         for(int i = 0; i < command.length(); i++){
-            std::string hold;
             if(command[i] !=  ' '){
                 hold += command[i];
+                //std::cout << "hold is: " << hold << '\n';
 			} else {
                 cmdcontainer.push_back(hold);
                 hold.clear();
 			}
 		}
+
+        cmdcontainer.push_back(hold);
+        hold.clear();
+
+        for(int i = 0; i < cmdcontainer.size(); i++){
+            //std::cout << "cmd chunk " << i << " = " << cmdcontainer[i] << '\n';
+        }
 
         if(cmdcontainer[0] == "create"){
             //Initialize new process, print PID
@@ -87,48 +96,50 @@ int main(int argc, char **argv)
         //"  * set <PID> <var_name> <offset> <value_0> <value_1> <value_2> ... <value_N> (set the value for a variable)"
         //void setVariable(uint32_t pid, std::string var_name, uint32_t offset, void *value, Mmu *mmu, PageTable *page_table, void *memory);
         else if(cmdcontainer[0] == "set"){
-            uint32_t num_to_set = cmdcontainer.size() - 4; //how many variables do we need to set?
-            uint32_t offset_inc; //size of type offset for each parameter
-            uint32_t offset = stoi(cmdcontainer[3]); //starting offset
-
-            Variable *inq = mmu->getVariableAt(stoi(cmdcontainer[1]), cmdcontainer[3]); //get var to check variable type.
+            Variable *inq = mmu->getVariableAt(stoi(cmdcontainer[1]), cmdcontainer[2]); //get var to check variable type.
             if(inq == NULL){
-                break; //getVariableAt returns null if it threw an error. 
-			}			
-
-            void *val;
-
-            if(inq->type == FreeSpace){ //set offset incrementer based on datatype.
-                offset_inc = 1;
-			} else if(inq->type == Char) {
-                offset_inc = 1;
-            } else if(inq->type == Short) {
-                offset_inc = 2;
-            } else if(inq->type == Int) {
-                offset_inc = 4;
-            } else if(inq->type == Float) {
-                offset_inc = 4;
-            } else if(inq->type == Long) {
-                offset_inc = 8;
-            } else if(inq->type == Double) {
-                offset_inc = 8;
-            } else {
-                std::cout << "Something went really wrong - this variable has no type." << '\n';     
-			}
-
-            for(int i = 0; i < num_to_set; i++){
-                std::string input = cmdcontainer[i + 3];
-                setVariable(stoi(cmdcontainer[1]), cmdcontainer[2], offset, &input, mmu, page_table, memory);
-                offset += offset_inc; //run setVariable each time offsetting by datatype's size.
-			}
+                std::cout << "error: variable not found\n"; //getVariableAt returns null if it threw an error. 
+			} else {
+                DataType type = inq->type;
+                int offset = stoi(cmdcontainer[3]);
+                int offsetInc = 0;
+                //std::cout << cmdcontainer.size() << std::endl;
+                for (int i = 4; i < cmdcontainer.size(); i++) {
+                    if(type == Char){
+                        char input = cmdcontainer[i][0];
+                        setVariable(stoi(cmdcontainer[1]), cmdcontainer[2], (uint32_t)(offset + offsetInc), &input, mmu, page_table, memory);
+                    }
+                    else if(type == Short){
+                        short input = stoi(cmdcontainer[i]);
+                        setVariable(stoi(cmdcontainer[1]), cmdcontainer[2], (uint32_t)(offset + offsetInc), &input, mmu, page_table, memory);
+                    }
+                    else if(type == Int){
+                        int input = stoi(cmdcontainer[i]);
+                        setVariable(stoi(cmdcontainer[1]), cmdcontainer[2], (uint32_t)(offset + offsetInc), &input, mmu, page_table, memory);
+                    }
+                    else if(type == Float){
+                        float input = stof(cmdcontainer[i]);
+                        setVariable(stoi(cmdcontainer[1]), cmdcontainer[2], (uint32_t)(offset + offsetInc), &input, mmu, page_table, memory);
+                    }
+                    else if(type == Long){
+                        long input = stol(cmdcontainer[i]);
+                        setVariable(stoi(cmdcontainer[1]), cmdcontainer[2], (uint32_t)(offset + offsetInc), &input, mmu, page_table, memory);
+                    }
+                    else if(type == Double){
+                        double input = stod(cmdcontainer[i]);
+                        setVariable(stoi(cmdcontainer[1]), cmdcontainer[2], (uint32_t)(offset + offsetInc), &input, mmu, page_table, memory);
+                    }
+                    offsetInc++;
+                }
+            }
+           
 		}
-
         else if(cmdcontainer[0] == "print"){
             if(cmdcontainer[1] == "mmu"){
                 mmu->print();
 			} else if (cmdcontainer[1] == "page"){
                 page_table->print();    
-			} else if (cmdcontainer[1] == "process"){
+			} else if (cmdcontainer[1] == "processes"){
                 mmu->printProcesses();
 			} else {
                 //split argument by colon     
@@ -185,7 +196,8 @@ int main(int argc, char **argv)
 		}
 
         else {
-            std::cout << "error: command not recognized";  
+            std::cout << "command recieved was: " << cmdcontainer[0] << '\n';
+            std::cout << "error: command not recognized" << '\n';  
 		}
 
         // Get next command
@@ -254,15 +266,18 @@ void allocateVariable(uint32_t pid, std::string var_name, DataType type, uint32_
 
     uint32_t prev_addr; //this is the address we will be allocating the variable to.
 
-    //   - if no hole is large enough, allocate new page(s)
+     //  - if no hole is large enough, allocate new page(s)
     if(target == NULL){
-        //int pagecomp = trunc(req_size / page_size); //is our variable too big for a single page?
         int pagenum = trunc((p->variables[p->variables.size() - 1]->virtual_address / page_size)+1); //get page number of last element in variables and then add 1.
         prev_addr = pagenum * page_size;
         mmu->addVariableToProcess(pid, "<FREE_SPACE>", FreeSpace, page_size, prev_addr); //BREAKPOINT - virtual address for new 'page' is the page # * pagesize.
         page_table->addEntry(pid, pagenum);
         target = p->variables[p->variables.size() - 1]; //new page starts at the latest index
-	} else { //   - insert variable into MMU
+	} else if(target->size > page_size){ //this is unsized free-space.
+        int pagenum = trunc((p->variables[p->variables.size() - 1]->virtual_address / page_size)+1);
+        page_table->addEntry(pid, pagenum);
+        prev_addr = target->virtual_address;
+    } else { //   - insert variable into MMU
         prev_addr = target->virtual_address;
 	}
 
@@ -271,47 +286,52 @@ void allocateVariable(uint32_t pid, std::string var_name, DataType type, uint32_
     mmu->addVariableToProcess(pid, var_name, type, req_size, prev_addr);
 
     //   - print virtual memory address
-    std::cout << prev_addr << '\n';
+    //if(var_name != "<TEXT>" && var_name != "<GLOBALS>" && var_name != "<STACK>")
+        std::cout << prev_addr << '\n';
 
 }
 
 void setVariable(uint32_t pid, std::string var_name, uint32_t offset, void *value, Mmu *mmu, PageTable *page_table, void *memory)
-{
-    // TODO: implement this!
-    if(mmu->isProcessInMMU(pid) == 0){
-        std::cout << "error: process not found" << '\n';
-        return;
-	}
-    //   - look up physical address for variable based on its virtual address / offset
-    Variable *target = mmu->getVariableAt(pid, var_name);
-    uint32_t phys_addr = page_table->getPhysicalAddress(pid, target->virtual_address + offset); //BREAKPOINT: might be misusing offset
-    DataType dt = target->type;
+{ 
+    Process *p = mmu->getProcessAt(pid);
+    int physical_address;
+    DataType dt;
 
-    //   - insert `value` into `memory` at physical address
-    if(dt == Char) {
-        value = (char*)value;
-        memcpy((char*)memory + phys_addr, value, getTypeByteSize(dt)); //copy one instance of (type-size) bytes
-	} else if(dt == Short) {
-        value = (short*)value;
-        memcpy((short*)memory + phys_addr, value, getTypeByteSize(dt));
-    } else if(dt == Int) {
-        value = (int*)value;
-        memcpy((int*)memory + phys_addr, value, getTypeByteSize(dt));
-    } else if(dt == Float) {
-        value = (float*)value;
-        memcpy((float*)memory + phys_addr, value, getTypeByteSize(dt));
-    } else if(dt == Long) {
-        value = (long*)value;
-        memcpy((long*)memory + phys_addr, value, getTypeByteSize(dt));
-    } else if(dt == Double) {
-        value = (double*)value;
-        memcpy((double*)memory + phys_addr, value, getTypeByteSize(dt));
-    } else {
-        std::cout << "error: invalid type" << '\n';
-	}
-
-    //   * note: this function only handles a single element (i.e. you'll need to call this within a loop when setting
-    //           multiple elements of an array)
+    if (p == NULL) {
+        std::cout << "error: process not found" << std::endl;
+    } else { //   - look up physical address for variable based on its virtual address / offset
+        Variable *var = mmu->getVariableAt(pid, var_name);
+        dt = var->type;
+        physical_address = page_table->getPhysicalAddress(pid, var->virtual_address + (offset*getTypeByteSize(dt)));
+        if (var == NULL) {
+            std::cout << "error: variable not found" << std::endl;
+        }else {  //   - insert `value` into `memory` at physical address
+            if(dt == Char)
+            {
+                memcpy(((char*)memory) + physical_address, value, 1);
+            }
+            if(dt == Short)
+            {
+                memcpy(((short*)memory) + physical_address, value, 2);
+            }
+            if(dt == Int)
+            {
+                memcpy(((int*)memory) + physical_address, value, 4);
+            }
+            if(dt == Float)
+            {
+                memcpy(((float*)memory) + physical_address, value, 4);
+            }
+            if(dt == Double)
+            {
+                memcpy(((double*)memory) + physical_address, value, 8);
+            }
+            if(dt == Long)
+            {
+                memcpy(((long*)memory) + physical_address, value, 8);
+            }
+        }
+    }
 }
 
 void freeVariable(uint32_t pid, std::string var_name, Mmu *mmu, PageTable *page_table, int page_size)

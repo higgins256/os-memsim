@@ -31,7 +31,7 @@ void PageTable::addEntry(uint32_t pid, int page_number)
     std::string entry = std::to_string(pid) + "|" + std::to_string(page_number);
 
     int frame = -1; 
-    int num_frames = 67108864 / _page_size; //not sure how to find this val without hardcoding 
+    const size_t num_frames = 67108864 / _page_size; //not sure how to find this val without hardcoding 
 
     // Find free frame
     //first, iterate thru pagetable and mark all used frames.
@@ -50,11 +50,13 @@ void PageTable::addEntry(uint32_t pid, int page_number)
 	}
 
     int i = 0;
-    while(frame == -1){
-        if(marked[i] = false){
+    while(frame == -1 && i < num_frames){
+        if(marked[i] == false){
             frame = i; //grab earliest possible unmarked frame  
 		}
+        i++;
 	}
+
 
     _table[entry] = frame;
 }
@@ -93,11 +95,10 @@ void PageTable::removePageEntry(uint32_t pid, int page_num){
 void PageTable::print()
 {
     int i;
+    std::vector<std::string> keys = sortedKeys();
 
     std::cout << " PID  | Page Number | Frame Number" << std::endl;
     std::cout << "------+-------------+--------------" << std::endl;
-
-    std::vector<std::string> keys = sortedKeys();
 
     for (i = 0; i < keys.size(); i++)
     {
@@ -108,8 +109,8 @@ void PageTable::print()
              break;
 		}
 
-        std::string pid = keys[i].substr(0, found - 1);
-        std::string pagenum = keys[i].substr(found + 1, keys[i].size() - (found + 1));
+        std::string pid = keys[i].substr(0, found);
+        int pagenum = stoi(keys[i].substr(found + 1, keys[i].size() - (found))) - 1; //hacked to zero-index??
         int framenum = _table[keys[i]];
 
         std::cout << std::setw(5) << pid << " | " << std::setw(11) << pagenum << " | " << std::setw(12) << framenum << '\n';

@@ -83,13 +83,14 @@ Variable* Mmu::getVariableAt(uint32_t pid, std::string desiredVar){
         return NULL; //self explanatory
 	}
 
+    //std::cout << "looking for " << desiredVar << '\n';
+
     for(int i = 0; i < p->variables.size(); i++){
+        //std::cout << "Is " << p->variables[i]->name << "equal to" << desiredVar << " \n";
         if(p->variables[i]->name == desiredVar){
             return p->variables[i];
 	    }
 	}
-
-    std::cout << "error: variable does not exist" << '\n'; //if we got here the variable does not exist. 
     return NULL;
 }
 
@@ -103,12 +104,14 @@ void Mmu::print()
     {
         for (j = 0; j < _processes[i]->variables.size(); j++)
         {
-            uint32_t pid = _processes[i]->pid;
-            std::string varname = _processes[i]->variables[j]->name;
-            uint32_t addr = _processes[i]->variables[j]->virtual_address;
-            uint32_t size = _processes[i]->variables[j]->size;
+            if(1){ //_processes[i]->variables[j]->name != "<FREE_SPACE>"
+                uint32_t pid = _processes[i]->pid;
+                std::string varname = _processes[i]->variables[j]->name;
+                uint32_t addr = _processes[i]->variables[j]->virtual_address;
+                uint32_t size = _processes[i]->variables[j]->size;
 
-            std::cout << std::setw(5) << pid << " | " << std::setw(13) << varname << " | " << std::setw(12) << addr << " | " << size << '\n';
+                std::cout << std::setw(5) << pid << " | " << std::setw(13) << varname << " | " << std::setw(12) << addr << " | " << size << '\n';
+            }
         }
     }
 }
