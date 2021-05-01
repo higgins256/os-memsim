@@ -142,44 +142,49 @@ int main(int argc, char **argv)
 			} else if (cmdcontainer[1] == "processes"){
                 mmu->printProcesses();
 			} else {
-                //split argument by colon     
-                size_t found = cmdcontainer[1].find(":");
-                int pid = stoi(cmdcontainer[1].substr(0, found - 1));
-                std::string varname = cmdcontainer[1].substr(found + 1, cmdcontainer[1].length() - found + 1);
-                //print the value of the variable indicated by the request
-                Variable *inq = mmu->getVariableAt(pid, varname);
-                int offset_inc = getTypeByteSize(inq->type);
+                    //split argument by colon     
+                    size_t found = cmdcontainer[1].find(":");
+                    if(found == std::string::npos){
+                        std::cout << "error: illegal print argument\n";
+                    } else {
+                        int pid = stoi(cmdcontainer[1].substr(0, found));
+                        std::string varname = cmdcontainer[1].substr(found + 1, cmdcontainer[1].length() - found + 1);
+                        //print the value of the variable indicated by the request
+                        Variable *inq = mmu->getVariableAt(pid, varname);
+                        int offset_inc = getTypeByteSize(inq->type);
+                        std::cout << varname << '\n';
 
-                int numvars = inq->size / offset_inc; //how many values are in this variable?
+                        int numvars = inq->size / offset_inc; //how many values are in this variable?
 
-                for(int i = 0; i < 4; i++){
-                    int phys_addr = page_table->getPhysicalAddress(pid, inq->virtual_address + i); //i acts as virtual offset for subvars
+                        for(int i = 0; i < numvars; i++){
+                            int phys_addr = page_table->getPhysicalAddress(pid, inq->virtual_address + i);; //i acts as virtual offset for subvars
 
-                    if(inq->type == Char) {
-                        std::cout << ((char*)memory)[phys_addr];
-                    } else if(inq->type == Short) {
-                        std::cout << ((short*)memory)[phys_addr];
-                    } else if(inq->type == Int) {
-                        std::cout << ((int*)memory)[phys_addr];
-                    } else if(inq->type == Float) {
-                        std::cout << ((float*)memory)[phys_addr];
-                    } else if(inq->type == Long) {
-                        std::cout << ((long*)memory)[phys_addr];
-                    } else if(inq->type == Double) {
-                        std::cout << ((double*)memory)[phys_addr];
-                    }
+                            if(inq->type == Char) {
+                                std::cout << ((char*)memory)[phys_addr];
+                            } else if(inq->type == Short) {
+                                std::cout << ((short*)memory)[phys_addr];
+                            } else if(inq->type == Int) {
+                                std::cout << ((int*)memory)[phys_addr];
+                            } else if(inq->type == Float) {
+                                std::cout << ((float*)memory)[phys_addr];
+                            } else if(inq->type == Long) {
+                                std::cout << ((long*)memory)[phys_addr];
+                            } else if(inq->type == Double) {
+                                std::cout << ((double*)memory)[phys_addr];
+                            }
 
-                    if(i < 3 || i < numvars - 1){
-                        std::cout << ", ";
-                    }
+                            if(i < 3 || i < numvars - 1){
+                                std::cout << ", ";
+                            }
 
-				} //POTENTIAL ISSUE - incrementer doesn't do type-oriened bit counting - it just shifts virt addr by 1 each run.
+                        } 
 
-                if(numvars > 4){
-                    std::cout  << "...[" << numvars << " items]" << '\n';      
-				} else {
-                    std::cout << '\n';        
-				}
+                        if(numvars > 4){
+                            std::cout  << "...[" << numvars << " items]" << '\n';      
+                        } else {
+                            std::cout << '\n';        
+                        }
+                }
 			}
 		}
 
@@ -286,7 +291,7 @@ void allocateVariable(uint32_t pid, std::string var_name, DataType type, uint32_
     mmu->addVariableToProcess(pid, var_name, type, req_size, prev_addr);
 
     //   - print virtual memory address
-    //if(var_name != "<TEXT>" && var_name != "<GLOBALS>" && var_name != "<STACK>")
+    if(var_name != "<TEXT>" && var_name != "<GLOBALS>" && var_name != "<STACK>")
         std::cout << prev_addr << '\n';
 
 }
@@ -347,11 +352,17 @@ void freeVariable(uint32_t pid, std::string var_name, Mmu *mmu, PageTable *page_
     toRemove->name = "<FREE_SPACE>";
     toRemove->type = FreeSpace;
 
+    std::cout << "Free Prep finished \n";
+
     //if newFree has free space neighbors, merge them.
     mmu->checkAndMerge(pid, toRemove, page_size);
 
+    std::cout << "Merged FREEs \n";
+
     //   - free page if this variable was the only one on a given page
     checkAndFreePage(pid, mmu, page_table, page_size); 
+
+    std::cout << "Done \n";
 }
 
 void terminateProcess(uint32_t pid, Mmu *mmu, PageTable *page_table, int page_size)
@@ -399,7 +410,7 @@ void checkAndFreePage(uint32_t pid, Mmu *mmu, PageTable *page_table, int page_si
     int flag = 0;
     int i = 0;
     while(i < toFree->variables.size()){
-        while(counter < page_size){
+        while(counter < page_size && i < toFree->variables.size()){
             if(toFree->variables[i]->name != "<FREE_SPACE>"){
                flag = 1;  
 		    }

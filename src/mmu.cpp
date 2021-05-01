@@ -104,7 +104,7 @@ void Mmu::print()
     {
         for (j = 0; j < _processes[i]->variables.size(); j++)
         {
-            if(1){ //_processes[i]->variables[j]->name != "<FREE_SPACE>"
+            if(_processes[i]->variables[j]->name != "<FREE_SPACE>"){ 
                 uint32_t pid = _processes[i]->pid;
                 std::string varname = _processes[i]->variables[j]->name;
                 uint32_t addr = _processes[i]->variables[j]->virtual_address;
@@ -145,14 +145,29 @@ void Mmu::checkAndMerge(uint32_t pid, Variable *var, uint32_t page_size){ //for 
 		}
 	}
 
+    std::cout << "Found FreeSpace to check. \n";
+    
+
     if(toCheck == -1){
         std::cout << "error: variable not found. did you pass an incorrect argument to checkAndMerge?" << '\n';
 	} else {
         int pgstart = trunc(inq->variables[toCheck]->virtual_address / page_size) * page_size; //start of page in VM is virtual addr / page size truncated and then remultiplied by pgsize
         int pgend = pgstart + page_size; //end of this page is just page_size bytes away from pgstart
 
-        if(inq->variables[toCheck - 1]->name == "<FREE_SPACE>" && inq->variables[toCheck + 1]->name == "<FREE_SPACE>"){ //Merge L&R
+        if(toCheck == 0 && inq->variables.size() > 1){
+            mergeHelper(1, inq, pgstart, pgend, toCheck);
+        } else if (toCheck > 0 && toCheck < inq->variables.size()-1){
+            mergeHelper(0, inq, pgstart, pgend, toCheck);
+        } else if(toCheck == inq->variables.size() - 1 && inq->variables.size() > 1){
+            mergeHelper(2, inq, pgstart, pgend, toCheck);
+        }
+	}
 
+}
+
+void Mmu::mergeHelper(int lrc, Process *inq, int pgstart, int pgend, int toCheck){
+    if(lrc == 0){ //inq toCheck has two neighbors
+        if(toCheck < inq->variables.size() - 2 && inq->variables[toCheck - 1]->name == "<FREE_SPACE>" && inq->variables[toCheck + 1]->name == "<FREE_SPACE>"){ //Merge L&R
             //Check page matches RIGHT to LEFT to avoid unusual FS distributions
             if(inq->variables[toCheck + 1]->virtual_address + inq->variables[toCheck + 1]->size <= pgend){ //is the right freespace on the same page?
                 inq->variables[toCheck]->size += inq->variables[toCheck + 1]->size;
@@ -164,15 +179,25 @@ void Mmu::checkAndMerge(uint32_t pid, Variable *var, uint32_t page_size){ //for 
                 inq->variables.erase(inq->variables.begin() + (toCheck));
 			}
             
-		} else if (inq->variables[toCheck - 1]->name == "<FREE_SPACE>" && inq->variables[toCheck + 1]->name != "<FREE_SPACE>" && inq->variables[toCheck - 1]->virtual_address >= pgstart){ //Merge L
+		}
+        else if (inq->variables[toCheck - 1]->name == "<FREE_SPACE>" && inq->variables[toCheck + 1]->name != "<FREE_SPACE>" && inq->variables[toCheck - 1]->virtual_address >= pgstart){ //Merge L
             inq->variables[toCheck - 1]->size += inq->variables[toCheck]->size;
             inq->variables.erase(inq->variables.begin() + (toCheck));
         } else if(inq->variables[toCheck - 1]->name != "<FREE_SPACE>" && inq->variables[toCheck + 1]->name == "<FREE_SPACE>" && inq->variables[toCheck + 1]->virtual_address + inq->variables[toCheck + 1]->size <= pgend){ //Merge R
             inq->variables[toCheck]->size += inq->variables[toCheck + 1]->size;
             inq->variables.erase(inq->variables.begin() + (toCheck + 1));
 		}
-	}
-
+    } else if (lrc == 1){ //toCheck has a right neighbor
+        if(inq->variables[toCheck + 1]->name == "<FREE_SPACE>" && inq->variables[toCheck + 1]->virtual_address + inq->variables[toCheck + 1]->size <= pgend){ //Merge R
+            inq->variables[toCheck]->size += inq->variables[toCheck + 1]->size;
+            inq->variables.erase(inq->variables.begin() + (toCheck + 1));
+		}
+    } else { //toCheck has a left neighbor
+        if(inq->variables[toCheck - 1]->name == "<FREE_SPACE>" && inq->variables[toCheck - 1]->virtual_address >= pgstart){ //Merge L
+            inq->variables[toCheck - 1]->size += inq->variables[toCheck]->size;
+            inq->variables.erase(inq->variables.begin() + (toCheck));
+		}
+    }
 }
 
 void Mmu::printProcesses(){

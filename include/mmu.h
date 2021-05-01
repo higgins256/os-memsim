@@ -37,6 +37,7 @@ public:
     void checkAndMerge(uint32_t pid, Variable *var, uint32_t page_size);
     int isProcessInMMU(uint32_t pid);
     void printProcesses();
+    void mergeHelper(int lrc, Process *inq, int pgstart, int pgend, int toCheck);
     void print();
 };
 
