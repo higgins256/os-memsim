@@ -14,6 +14,8 @@ void terminateProcess(uint32_t pid, Mmu *mmu, PageTable *page_table, int page_si
 int getTypeByteSize(DataType type);
 void checkAndFreePage(uint32_t pid, Mmu *mmu, PageTable *page_table, int page_size);
 
+int mem_utilization = 0;
+
 int main(int argc, char **argv)
 {
     // Ensure user specified page size as a command line parameter
@@ -177,6 +179,9 @@ int main(int argc, char **argv)
                                 std::cout << ", ";
                             }
 
+                            if(i == 4){
+                                break;
+                            }
                         } 
 
                         if(numvars > 4){
@@ -259,6 +264,13 @@ void allocateVariable(uint32_t pid, std::string var_name, DataType type, uint32_
 	}
 
     uint32_t req_size = getTypeByteSize(type) * num_elements;
+
+    mem_utilization += req_size;
+    if(mem_utilization > 67108864){
+        std::cout << "error: allocation exceeds memory size. \n";
+        return;
+    }
+
     Process *p = mmu->getProcessAt(pid);
     //   - find first free space within a page already allocated to this process that is large enough to fit the new variable
     Variable *target;
@@ -280,6 +292,8 @@ void allocateVariable(uint32_t pid, std::string var_name, DataType type, uint32_
         target = p->variables[p->variables.size() - 1]; //new page starts at the latest index
 	} else if(target->size > page_size){ //this is unsized free-space.
         int pagenum = trunc((p->variables[p->variables.size() - 1]->virtual_address / page_size)+1);
+        //std::cout << page_size - p->variables[p->variables.size() - 1]->size << '\n';
+
         page_table->addEntry(pid, pagenum);
         prev_addr = target->virtual_address;
     } else { //   - insert variable into MMU
@@ -352,17 +366,11 @@ void freeVariable(uint32_t pid, std::string var_name, Mmu *mmu, PageTable *page_
     toRemove->name = "<FREE_SPACE>";
     toRemove->type = FreeSpace;
 
-    std::cout << "Free Prep finished \n";
-
     //if newFree has free space neighbors, merge them.
     mmu->checkAndMerge(pid, toRemove, page_size);
 
-    std::cout << "Merged FREEs \n";
-
     //   - free page if this variable was the only one on a given page
     checkAndFreePage(pid, mmu, page_table, page_size); 
-
-    std::cout << "Done \n";
 }
 
 void terminateProcess(uint32_t pid, Mmu *mmu, PageTable *page_table, int page_size)
